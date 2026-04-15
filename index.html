@@ -1,0 +1,940 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chinese Passport Photo Maker</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: #f0f2f5; color: #333; min-height: 100vh;
+}
+.header {
+  background: linear-gradient(135deg, #c62828, #e53935);
+  color: white; padding: 20px; text-align: center;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  position: relative;
+}
+.header h1 { font-size: 24px; margin-bottom: 6px; }
+.header p { font-size: 14px; opacity: 0.9; }
+
+.lang-btn {
+  position: absolute; top: 16px; right: 20px;
+  background: rgba(255,255,255,0.2); color: white;
+  border: 1.5px solid rgba(255,255,255,0.5);
+  padding: 6px 14px; border-radius: 20px;
+  font-size: 13px; font-weight: 600; cursor: pointer;
+  transition: all 0.2s; backdrop-filter: blur(4px);
+}
+.lang-btn:hover { background: rgba(255,255,255,0.35); }
+
+.container { max-width: 900px; margin: 0 auto; padding: 20px; }
+.step {
+  background: white; border-radius: 12px; padding: 24px;
+  margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+.step-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+.step-number {
+  background: #c62828; color: white;
+  width: 32px; height: 32px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: bold; font-size: 16px; flex-shrink: 0;
+}
+.step-title { font-size: 18px; font-weight: 600; }
+
+.upload-area {
+  border: 3px dashed #ccc; border-radius: 12px;
+  padding: 40px; text-align: center; cursor: pointer;
+  transition: all 0.3s; position: relative;
+}
+.upload-area:hover, .upload-area.dragover { border-color: #c62828; background: #fff5f5; }
+.upload-area input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.upload-icon { font-size: 48px; margin-bottom: 12px; }
+.upload-text { font-size: 16px; color: #666; }
+.upload-hint { font-size: 13px; color: #999; margin-top: 8px; }
+
+.crop-container { max-height: 500px; overflow: hidden; background: #1a1a1a; border-radius: 8px; }
+.crop-container img { display: block; max-width: 100%; }
+
+.guide-overlay { position: absolute; inset: 0; pointer-events: none; z-index: 10; }
+.guide-line { position: absolute; left: 0; right: 0; border-top: 2px dashed rgba(0,255,100,0.7); pointer-events: none; }
+.guide-line-vertical { position: absolute; top: 0; bottom: 0; border-left: 2px dashed rgba(0,255,100,0.5); pointer-events: none; }
+.guide-label {
+  position: absolute; right: 4px; font-size: 10px; color: #00ff64; font-weight: bold;
+  text-shadow: 0 0 3px rgba(0,0,0,0.9), 0 0 6px rgba(0,0,0,0.5);
+  white-space: nowrap; pointer-events: none; transform: translateY(-100%);
+}
+.guide-zone { position: absolute; left: 0; right: 0; pointer-events: none; }
+.guide-zone-top { background: rgba(255,200,0,0.15); border-bottom: 1.5px solid rgba(255,200,0,0.6); }
+.guide-zone-eyes { background: rgba(0,150,255,0.1); border-top: 1.5px dashed rgba(0,150,255,0.6); border-bottom: 1.5px dashed rgba(0,150,255,0.6); }
+.guide-zone-chin { border-top: 2px dashed rgba(255,100,0,0.7); }
+
+.specs { background: #fff8e1; border: 1px solid #ffe082; border-radius: 8px; padding: 14px 18px; margin-bottom: 16px; font-size: 14px; line-height: 1.6; }
+.specs strong { color: #e65100; }
+
+.validation-panel { border-radius: 8px; padding: 16px; margin: 16px 0; font-size: 14px; }
+.validation-loading { background: #e3f2fd; border: 1px solid #90caf9; display: flex; align-items: center; gap: 10px; }
+.validation-results { background: #f5f5f5; border: 1px solid #e0e0e0; }
+.check-item { display: flex; align-items: flex-start; gap: 8px; padding: 6px 0; line-height: 1.4; }
+.check-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+.check-pass .check-icon { color: #2e7d32; }
+.check-fail .check-icon { color: #c62828; }
+.check-warn .check-icon { color: #e65100; }
+.check-info .check-icon { color: #1565c0; }
+.check-fail .check-text { color: #c62828; font-weight: 500; }
+.check-warn .check-text { color: #e65100; }
+.validation-summary { margin-top: 10px; padding-top: 10px; border-top: 1px solid #ddd; font-weight: 600; }
+.summary-pass { color: #2e7d32; }
+.summary-fail { color: #c62828; }
+.summary-warn { color: #e65100; }
+
+.spinner { width: 20px; height: 20px; border: 3px solid #90caf9; border-top-color: #1565c0; border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.btn { display: inline-flex; align-items: center; gap: 8px; padding: 12px 28px; border: none; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+.btn-primary { background: #c62828; color: white; }
+.btn-primary:hover { background: #b71c1c; }
+.btn-secondary { background: #e0e0e0; color: #333; }
+.btn-secondary:hover { background: #d0d0d0; }
+.btn-success { background: #2e7d32; color: white; }
+.btn-success:hover { background: #1b5e20; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-group { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 16px; }
+
+.preview-grid { text-align: center; }
+.preview-grid canvas { max-width: 100%; border: 1px solid #ddd; border-radius: 4px; background: white; }
+.hidden { display: none !important; }
+.photo-preview { display: inline-block; border: 1px solid #ddd; border-radius: 4px; margin: 10px 0; }
+.photo-preview canvas { display: block; max-height: 300px; }
+.info-row { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 12px; }
+.info-card { flex: 1; min-width: 200px; background: #f5f5f5; border-radius: 8px; padding: 12px 16px; }
+.info-card .label { font-size: 12px; color: #888; text-transform: uppercase; }
+.info-card .value { font-size: 18px; font-weight: 600; margin-top: 4px; }
+
+.bg-section { background: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+.bg-section-title { font-weight: 600; font-size: 15px; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+.bg-toggle { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; cursor: pointer; user-select: none; font-size: 14px; }
+.bg-toggle input { width: 18px; height: 18px; accent-color: #c62828; }
+.bg-colors { display: flex; gap: 10px; margin: 10px 0; flex-wrap: wrap; align-items: center; }
+.bg-color-label { font-size: 13px; color: #666; margin-right: 4px; }
+.bg-color-btn { width: 36px; height: 36px; border-radius: 50%; border: 3px solid transparent; cursor: pointer; transition: all 0.2s; }
+.bg-color-btn:hover { transform: scale(1.1); }
+.bg-color-btn.active { border-color: #c62828; box-shadow: 0 0 0 2px rgba(198,40,40,0.3); }
+.bg-color-white { background: #fff; box-shadow: inset 0 0 0 1px #ccc; }
+.bg-color-blue { background: #438ecc; }
+.bg-color-red { background: #cc3333; }
+.bg-preview-row { display: flex; gap: 16px; margin-top: 14px; flex-wrap: wrap; align-items: flex-start; }
+.bg-preview-box { text-align: center; }
+.bg-preview-box .label { font-size: 12px; color: #888; margin-bottom: 4px; }
+.bg-preview-box canvas { border: 1px solid #ddd; border-radius: 4px; max-height: 180px; max-width: 140px; }
+.bg-status { font-size: 13px; padding: 8px 12px; border-radius: 6px; margin-top: 8px; display: flex; align-items: center; gap: 8px; }
+.bg-status-processing { background: #e3f2fd; border: 1px solid #90caf9; }
+.bg-status-done { background: #e8f5e9; border: 1px solid #a5d6a7; }
+
+.rotation-controls { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+.rotation-controls button { padding: 6px 14px; border: 1px solid #ddd; background: white; border-radius: 6px; cursor: pointer; font-size: 14px; }
+.rotation-controls button:hover { background: #f5f5f5; }
+.toggle-guides { display: flex; align-items: center; gap: 8px; margin-top: 12px; font-size: 14px; cursor: pointer; user-select: none; }
+.toggle-guides input { width: 18px; height: 18px; accent-color: #c62828; }
+.requirements { background: #e8f5e9; border: 1px solid #a5d6a7; border-radius: 8px; padding: 14px 18px; margin-bottom: 16px; font-size: 13px; line-height: 1.8; }
+.requirements h4 { color: #2e7d32; margin-bottom: 6px; font-size: 14px; }
+.requirements ul { padding-left: 20px; }
+.guide-legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 10px; font-size: 12px; color: #666; }
+.legend-item { display: flex; align-items: center; gap: 5px; }
+.legend-swatch { width: 20px; height: 3px; border-radius: 2px; }
+
+@media (max-width: 600px) {
+  .container { padding: 12px; }
+  .step { padding: 16px; }
+  .upload-area { padding: 24px; }
+  .btn { padding: 10px 20px; font-size: 14px; }
+  .bg-preview-row { flex-direction: column; align-items: center; }
+  .lang-btn { top: 10px; right: 10px; padding: 4px 10px; font-size: 12px; }
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1 data-i18n="title">Chinese Passport Photo Maker</h1>
+  <p data-i18n="subtitle">Crop to 33mm x 48mm | Face detection & validation | Background replacement | Print 8-up on 4x6"</p>
+  <button class="lang-btn" onclick="toggleLang()">&#127760; <span id="langLabel">中文</span></button>
+</div>
+
+<div class="container">
+
+  <!-- Step 1 -->
+  <div class="step" id="step1">
+    <div class="step-header">
+      <div class="step-number">1</div>
+      <div class="step-title" data-i18n="step1Title">Upload Your Photo</div>
+    </div>
+    <div class="requirements">
+      <h4 data-i18n="reqTitle">Chinese Passport Photo Requirements</h4>
+      <ul>
+        <li data-i18n="reqSize"><strong>Size:</strong> 33mm wide x 48mm tall</li>
+        <li data-i18n="reqBg"><strong>Background:</strong> White, uniform, no shadows</li>
+        <li data-i18n="reqHead"><strong>Head height:</strong> 28 - 33mm (58% - 69% of photo height)</li>
+        <li data-i18n="reqMargin"><strong>Top margin:</strong> 3 - 5mm above the top of the head</li>
+        <li data-i18n="reqExpr"><strong>Expression:</strong> Neutral, mouth closed, both eyes open</li>
+        <li data-i18n="reqNot"><strong>NOT allowed:</strong> Hats, glasses, face coverings, head tilted</li>
+        <li data-i18n="reqFace"><strong>Face:</strong> Centered, looking straight at the camera, ears visible</li>
+      </ul>
+    </div>
+    <div class="upload-area" id="uploadArea">
+      <div class="upload-icon">&#128247;</div>
+      <div class="upload-text" data-i18n="uploadText">Click or drag a photo here</div>
+      <div class="upload-hint" data-i18n="uploadHint">Supports JPG, PNG. Take a photo against a plain background.</div>
+      <input type="file" id="fileInput" accept="image/*">
+    </div>
+    <div id="uploadValidation"></div>
+  </div>
+
+  <!-- Step 2 -->
+  <div class="step hidden" id="step2">
+    <div class="step-header">
+      <div class="step-number">2</div>
+      <div class="step-title" data-i18n="step2Title">Position, Background & Crop</div>
+    </div>
+    <div class="specs" data-i18n="guideDesc">
+      Align the face with the <strong style="color:#00aa44;">green guide lines</strong>.
+      <span style="color:#ccaa00;font-weight:600;">Yellow</span> = top margin.
+      <span style="color:#0088ff;font-weight:600;">Blue</span> = eye level.
+      <span style="color:#ff6600;font-weight:600;">Orange</span> = chin.
+    </div>
+
+    <div class="bg-section">
+      <div class="bg-section-title">&#127912; <span data-i18n="bgTitle">Background Replacement</span></div>
+      <label class="bg-toggle">
+        <input type="checkbox" id="bgEnabled"> <span data-i18n="bgToggle">Replace photo background with a solid color</span>
+      </label>
+      <div id="bgControls" class="hidden">
+        <div class="bg-colors">
+          <span class="bg-color-label" data-i18n="bgColorLabel">Color:</span>
+          <div class="bg-color-btn bg-color-white active" data-bg="255,255,255" title="White"></div>
+          <div class="bg-color-btn bg-color-blue" data-bg="67,142,204" title="Blue"></div>
+          <div class="bg-color-btn bg-color-red" data-bg="204,51,51" title="Red"></div>
+        </div>
+        <div style="font-size:13px;color:#555;margin:8px 0;padding:8px 12px;background:#e3f2fd;border-radius:6px;border:1px solid #90caf9;" data-i18n="bgAiNote">
+          Uses AI-powered segmentation (MediaPipe). The model (~250KB) downloads on first use.
+        </div>
+        <div class="bg-preview-row" id="bgPreviewRow" style="display:none;">
+          <div class="bg-preview-box"><div class="label" data-i18n="bgOriginal">Original</div><canvas id="bgPreviewOrig"></canvas></div>
+          <div class="bg-preview-box"><div class="label" data-i18n="bgReplaced">Background Replaced</div><canvas id="bgPreviewNew"></canvas></div>
+        </div>
+        <div id="bgStatus"></div>
+        <div style="margin-top:10px;">
+          <button class="btn btn-secondary" style="padding:8px 18px;font-size:14px;" onclick="previewBackground()" data-i18n="bgPreviewBtn">Preview Background Change</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="crop-container" id="cropContainer">
+      <img id="cropImage" src="" alt="">
+    </div>
+
+    <label class="toggle-guides">
+      <input type="checkbox" id="showGuides" checked> <span data-i18n="showGuides">Show positioning guides</span>
+    </label>
+    <div class="guide-legend">
+      <div class="legend-item"><div class="legend-swatch" style="background:#ccaa00;"></div> <span data-i18n="legTop">Top margin (3-5mm)</span></div>
+      <div class="legend-item"><div class="legend-swatch" style="background:#00ff64;"></div> <span data-i18n="legHead">Top of head</span></div>
+      <div class="legend-item"><div class="legend-swatch" style="background:#0096ff;"></div> <span data-i18n="legEye">Eye level</span></div>
+      <div class="legend-item"><div class="legend-swatch" style="background:#ff6600;"></div> <span data-i18n="legChin">Chin line</span></div>
+      <div class="legend-item"><div class="legend-swatch" style="background:#00ff64;opacity:0.5;"></div> <span data-i18n="legCenter">Center line</span></div>
+    </div>
+    <div class="rotation-controls">
+      <button onclick="rotateCrop(-45)" data-i18n="rotateLeft">&#8630; Rotate Left</button>
+      <button onclick="rotateCrop(45)" data-i18n="rotateRight">&#8631; Rotate Right</button>
+      <button onclick="resetCrop()" data-i18n="reset">Reset</button>
+    </div>
+    <div class="btn-group">
+      <button class="btn btn-secondary" onclick="goToStep1()" data-i18n="back">Back</button>
+      <button class="btn btn-primary" onclick="applyCrop()" data-i18n="cropBtn">Crop & Validate</button>
+    </div>
+  </div>
+
+  <!-- Step 3 -->
+  <div class="step hidden" id="step3">
+    <div class="step-header">
+      <div class="step-number">3</div>
+      <div class="step-title" data-i18n="step3Title">Validation & Download</div>
+    </div>
+    <div id="cropValidation"></div>
+    <div class="info-row">
+      <div class="info-card"><div class="label" data-i18n="cardPhoto">Single Photo</div><div class="value">33 x 48 mm</div></div>
+      <div class="info-card"><div class="label" data-i18n="cardLayout">Print Layout</div><div class="value">4 x 2</div></div>
+      <div class="info-card"><div class="label" data-i18n="cardPaper">Paper Size</div><div class="value">4 x 6 inch</div></div>
+    </div>
+    <div style="margin-top:16px;">
+      <label style="font-weight:600;font-size:14px;" data-i18n="previewLabel">Cropped photo with reference overlay:</label>
+      <div class="photo-preview" id="singlePreview"></div>
+    </div>
+    <div style="margin-top:16px;">
+      <label style="font-weight:600;font-size:14px;" data-i18n="sheetLabel">Print-ready 4x6" sheet (8 photos):</label>
+      <div class="preview-grid" id="gridPreview"></div>
+    </div>
+    <div class="btn-group">
+      <button class="btn btn-secondary" onclick="goToStep2()" data-i18n="recrop">Re-crop</button>
+      <button class="btn btn-success" onclick="downloadResult()" data-i18n="dlSheet">Download 4x6 Sheet</button>
+      <button class="btn btn-primary" onclick="downloadSingle()" data-i18n="dlSingle">Download Single Photo</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/dist/face-api.min.js"></script>
+<script>
+// ==================== I18N ====================
+let lang = 'en';
+
+const T = {
+  en: {
+    title: 'Chinese Passport Photo Maker',
+    subtitle: 'Crop to 33mm x 48mm | Face detection & validation | Background replacement | Print 8-up on 4x6"',
+    step1Title: 'Upload Your Photo',
+    reqTitle: 'Chinese Passport Photo Requirements',
+    reqSize: '<strong>Size:</strong> 33mm wide x 48mm tall',
+    reqBg: '<strong>Background:</strong> White, uniform, no shadows',
+    reqHead: '<strong>Head height:</strong> 28 - 33mm (58% - 69% of photo height)',
+    reqMargin: '<strong>Top margin:</strong> 3 - 5mm above the top of the head',
+    reqExpr: '<strong>Expression:</strong> Neutral, mouth closed, both eyes open',
+    reqNot: '<strong>NOT allowed:</strong> Hats, glasses, face coverings, head tilted',
+    reqFace: '<strong>Face:</strong> Centered, looking straight at the camera, ears visible',
+    uploadText: 'Click or drag a photo here',
+    uploadHint: 'Supports JPG, PNG. Take a photo against a plain background.',
+    step2Title: 'Position, Background & Crop',
+    guideDesc: 'Align the face with the <strong style="color:#00aa44;">green guide lines</strong>. <span style="color:#ccaa00;font-weight:600;">Yellow</span> = top margin. <span style="color:#0088ff;font-weight:600;">Blue</span> = eye level. <span style="color:#ff6600;font-weight:600;">Orange</span> = chin.',
+    bgTitle: 'Background Replacement',
+    bgToggle: 'Replace photo background with a solid color',
+    bgColorLabel: 'Color:',
+    bgAiNote: 'Uses AI-powered segmentation (MediaPipe). The model (~250KB) downloads on first use.',
+    bgOriginal: 'Original',
+    bgReplaced: 'Background Replaced',
+    bgPreviewBtn: 'Preview Background Change',
+    bgProcessing: 'Loading AI model & processing...',
+    bgDone: 'Background replaced! Proceed to crop when ready.',
+    showGuides: 'Show positioning guides',
+    legTop: 'Top margin (3-5mm)', legHead: 'Top of head', legEye: 'Eye level', legChin: 'Chin line', legCenter: 'Center line',
+    rotateLeft: '&#8630; Rotate Left', rotateRight: '&#8631; Rotate Right', reset: 'Reset',
+    back: 'Back', cropBtn: 'Crop & Validate',
+    step3Title: 'Validation & Download',
+    cardPhoto: 'Single Photo', cardLayout: 'Print Layout', cardPaper: 'Paper Size',
+    previewLabel: 'Cropped photo with reference overlay:',
+    sheetLabel: 'Print-ready 4x6" sheet (8 photos):',
+    recrop: 'Re-crop', dlSheet: 'Download 4x6 Sheet', dlSingle: 'Download Single Photo',
+    analyzing: 'Analyzing photo... detecting face...',
+    replacingBg: 'Replacing background and validating...',
+    validating: 'Validating cropped photo...',
+    valTitle: 'Photo Analysis', valCropTitle: 'Passport Photo Validation',
+    noFace: 'No face detected. Make sure your face is clearly visible, well-lit, and facing the camera.',
+    multiFace: 'Multiple faces detected ({0}). Only one person should be in the photo.',
+    oneFace: 'One face detected.',
+    faceTooSmall: 'Face is too small. Move closer to the camera or zoom in.',
+    faceTooLarge: 'Face fills most of the frame. Make sure there\'s space above the head.',
+    faceSizeOk: 'Face size is good for cropping.',
+    faceNotCenter: 'Face is not centered horizontally. Adjust during cropping.',
+    headTilted: 'Head is tilted ({0}\u00B0). Keep your head straight and level.',
+    headSlightTilt: 'Head is slightly tilted ({0}\u00B0). Try to keep it straight.',
+    headAngleOk: 'Head angle is good ({0}\u00B0).',
+    mouthOpen: 'Mouth appears to be open. Keep mouth naturally closed.',
+    mouthOk: 'Mouth position looks good.',
+    headCutOff: 'Top of head may be cut off. Ensure there is space above the head.',
+    lowConf: 'Low face confidence ({0}%). Face may be partially covered by a hat, glasses, or other obstruction.',
+    medConf: 'Face confidence: {0}%. If wearing glasses, consider removing them.',
+    highConf: 'Face is clearly visible (confidence: {0}%).',
+    faceSideways: 'Face appears to be turned sideways. Look straight at the camera.',
+    faceFront: 'Face is facing the camera.',
+    noFaceCrop: 'No face detected in the cropped area. Re-crop to include the full face.',
+    multiFaceCrop: 'Multiple faces in crop area.',
+    headSmall: 'Head too small: ~{0}mm (need 28-33mm).',
+    headSlightSmall: 'Head slightly small: ~{0}mm (need 28-33mm).',
+    headLarge: 'Head too large: ~{0}mm (need 28-33mm).',
+    headSlightLarge: 'Head slightly large: ~{0}mm (need 28-33mm).',
+    headOk: 'Head height: ~{0}mm (required: 28-33mm).',
+    marginSmall: 'Top margin too small: ~{0}mm (need 3-5mm).',
+    marginTight: 'Top margin tight: ~{0}mm (need 3-5mm).',
+    marginLarge: 'Top margin large: ~{0}mm (need 3-5mm).',
+    marginOk: 'Top margin: ~{0}mm (required: 3-5mm).',
+    notCentered: 'Face is not centered horizontally.',
+    centered: 'Face is centered.',
+    eyeHigh: 'Eye position may be too high in the frame.',
+    eyeLow: 'Eye position may be too low in the frame.',
+    eyeOk: 'Eye position looks good.',
+    faceNarrow: 'Face width narrow: ~{0}mm (ideal: 15-22mm).',
+    faceWide: 'Face width wide: ~{0}mm (ideal: 15-22mm).',
+    faceWidthOk: 'Face width: ~{0}mm (ideal: 15-22mm).',
+    bgReplaced2: 'Background replaced with solid color.',
+    allPass: 'All checks passed! Photo meets requirements.',
+    issuesFound: '{0} issue(s) found. Please fix before using.',
+    warningsFound: '{0} warning(s). May still be acceptable.',
+    faceDetectErr: 'Face detection unavailable. You can still crop manually.',
+    modelsLoading: 'Face detection models still loading. You can proceed.',
+    labelHeadTop: '\u2193 Top of head', labelEyes: 'Eyes', labelChin: 'Chin',
+    guideHeadTop: 'Top of head', guideTopMargin: 'Top margin 3-5mm', guideEyeLevel: 'Eye level', guideChinLine: 'Chin line',
+  },
+  zh: {
+    title: '\u4E2D\u56FD\u62A4\u7167\u8BC1\u4EF6\u7167\u5236\u4F5C',
+    subtitle: '\u88C1\u5207\u81F333x48\u6BEB\u7C73 | \u4EBA\u8138\u68C0\u6D4B\u4E0E\u9A8C\u8BC1 | \u80CC\u666F\u66FF\u6362 | 4x6\u82F1\u5BF8\u6392\u7248\u6253\u5370',
+    step1Title: '\u4E0A\u4F20\u7167\u7247',
+    reqTitle: '\u4E2D\u56FD\u62A4\u7167\u7167\u7247\u8981\u6C42',
+    reqSize: '<strong>\u5C3A\u5BF8\uFF1A</strong>\u5BBD33\u6BEB\u7C73 x \u9AD848\u6BEB\u7C73',
+    reqBg: '<strong>\u80CC\u666F\uFF1A</strong>\u767D\u8272\uFF0C\u5747\u5300\uFF0C\u65E0\u9634\u5F71',
+    reqHead: '<strong>\u5934\u90E8\u9AD8\u5EA6\uFF1A</strong>28 - 33\u6BEB\u7C73\uFF08\u7167\u7247\u9AD8\u5EA6\u768458% - 69%\uFF09',
+    reqMargin: '<strong>\u9876\u90E8\u7559\u767D\uFF1A</strong>\u5934\u9876\u4E0A\u65B93 - 5\u6BEB\u7C73',
+    reqExpr: '<strong>\u8868\u60C5\uFF1A</strong>\u81EA\u7136\uFF0C\u5634\u5DF4\u95ED\u5408\uFF0C\u53CC\u773C\u7741\u5F00',
+    reqNot: '<strong>\u4E0D\u5141\u8BB8\uFF1A</strong>\u5E3D\u5B50\u3001\u773C\u955C\u3001\u906E\u6321\u7269\u3001\u6B6A\u5934',
+    reqFace: '<strong>\u9762\u90E8\uFF1A</strong>\u5C45\u4E2D\uFF0C\u6B63\u5BF9\u955C\u5934\uFF0C\u9732\u51FA\u8033\u6735',
+    uploadText: '\u70B9\u51FB\u6216\u62D6\u62FD\u7167\u7247\u5230\u6B64\u5904',
+    uploadHint: '\u652F\u6301 JPG\u3001PNG \u683C\u5F0F\u3002\u8BF7\u5728\u7EAF\u8272\u80CC\u666F\u524D\u62CD\u6444\u3002',
+    step2Title: '\u8C03\u6574\u4F4D\u7F6E\u3001\u80CC\u666F\u548C\u88C1\u5207',
+    guideDesc: '\u5C06\u9762\u90E8\u5BF9\u9F50<strong style="color:#00aa44;">\u7EFF\u8272\u53C2\u8003\u7EBF</strong>\u3002<span style="color:#ccaa00;font-weight:600;">\u9EC4\u8272</span> = \u9876\u90E8\u7559\u767D\u3002<span style="color:#0088ff;font-weight:600;">\u84DD\u8272</span> = \u773C\u775B\u4F4D\u7F6E\u3002<span style="color:#ff6600;font-weight:600;">\u6A59\u8272</span> = \u4E0B\u5DF4\u3002',
+    bgTitle: '\u80CC\u666F\u66FF\u6362',
+    bgToggle: '\u5C06\u7167\u7247\u80CC\u666F\u66FF\u6362\u4E3A\u7EAF\u8272',
+    bgColorLabel: '\u989C\u8272\uFF1A',
+    bgAiNote: '\u4F7F\u7528AI\u667A\u80FD\u5206\u5272\uFF08MediaPipe\uFF09\u3002\u6A21\u578B\uFF08\u7EA6250KB\uFF09\u9996\u6B21\u4F7F\u7528\u65F6\u4E0B\u8F7D\u3002',
+    bgOriginal: '\u539F\u56FE',
+    bgReplaced: '\u80CC\u666F\u5DF2\u66FF\u6362',
+    bgPreviewBtn: '\u9884\u89C8\u80CC\u666F\u6548\u679C',
+    bgProcessing: '\u6B63\u5728\u52A0\u8F7DAI\u6A21\u578B\u5E76\u5904\u7406...',
+    bgDone: '\u80CC\u666F\u66FF\u6362\u5B8C\u6210\uFF01\u8BF7\u7EE7\u7EED\u88C1\u5207\u3002',
+    showGuides: '\u663E\u793A\u5B9A\u4F4D\u53C2\u8003\u7EBF',
+    legTop: '\u9876\u90E8\u7559\u767D (3-5mm)', legHead: '\u5934\u9876', legEye: '\u773C\u775B\u4F4D\u7F6E', legChin: '\u4E0B\u5DF4\u7EBF', legCenter: '\u4E2D\u5FC3\u7EBF',
+    rotateLeft: '&#8630; \u5411\u5DE6\u65CB\u8F6C', rotateRight: '&#8631; \u5411\u53F3\u65CB\u8F6C', reset: '\u91CD\u7F6E',
+    back: '\u8FD4\u56DE', cropBtn: '\u88C1\u5207\u5E76\u9A8C\u8BC1',
+    step3Title: '\u9A8C\u8BC1\u4E0E\u4E0B\u8F7D',
+    cardPhoto: '\u5355\u5F20\u7167\u7247', cardLayout: '\u6392\u7248\u5E03\u5C40', cardPaper: '\u7EB8\u5F20\u5C3A\u5BF8',
+    previewLabel: '\u88C1\u5207\u540E\u5E26\u53C2\u8003\u7EBF\u7684\u7167\u7247\uFF1A',
+    sheetLabel: '\u53EF\u6253\u5370\u76844x6\u82F1\u5BF8\u6392\u7248\uFF088\u5F20\u7167\u7247\uFF09\uFF1A',
+    recrop: '\u91CD\u65B0\u88C1\u5207', dlSheet: '\u4E0B\u8F7D4x6\u6392\u7248', dlSingle: '\u4E0B\u8F7D\u5355\u5F20\u7167\u7247',
+    analyzing: '\u6B63\u5728\u5206\u6790\u7167\u7247...\u68C0\u6D4B\u4EBA\u8138...',
+    replacingBg: '\u6B63\u5728\u66FF\u6362\u80CC\u666F\u5E76\u9A8C\u8BC1...',
+    validating: '\u6B63\u5728\u9A8C\u8BC1\u88C1\u5207\u7167\u7247...',
+    valTitle: '\u7167\u7247\u5206\u6790', valCropTitle: '\u62A4\u7167\u7167\u7247\u9A8C\u8BC1',
+    noFace: '\u672A\u68C0\u6D4B\u5230\u4EBA\u8138\u3002\u8BF7\u786E\u4FDD\u9762\u90E8\u6E05\u6670\u53EF\u89C1\u3001\u5149\u7EBF\u5145\u8DB3\u3001\u6B63\u5BF9\u955C\u5934\u3002',
+    multiFace: '\u68C0\u6D4B\u5230\u591A\u5F20\u4EBA\u8138\uFF08{0}\u5F20\uFF09\u3002\u7167\u7247\u4E2D\u53EA\u5E94\u6709\u4E00\u4EBA\u3002',
+    oneFace: '\u68C0\u6D4B\u5230\u4E00\u5F20\u4EBA\u8138\u3002',
+    faceTooSmall: '\u4EBA\u8138\u592A\u5C0F\u3002\u8BF7\u9760\u8FD1\u955C\u5934\u6216\u653E\u5927\u3002',
+    faceTooLarge: '\u4EBA\u8138\u5360\u636E\u753B\u9762\u5927\u90E8\u5206\u3002\u8BF7\u786E\u4FDD\u5934\u9876\u4E0A\u65B9\u6709\u7A7A\u95F4\u3002',
+    faceSizeOk: '\u4EBA\u8138\u5927\u5C0F\u9002\u5408\u88C1\u5207\u3002',
+    faceNotCenter: '\u4EBA\u8138\u672A\u6C34\u5E73\u5C45\u4E2D\u3002\u88C1\u5207\u65F6\u53EF\u8C03\u6574\u3002',
+    headTilted: '\u5934\u90E8\u503E\u659C\uFF08{0}\u00B0\uFF09\u3002\u8BF7\u4FDD\u6301\u5934\u90E8\u7AEF\u6B63\u3002',
+    headSlightTilt: '\u5934\u90E8\u7565\u6709\u503E\u659C\uFF08{0}\u00B0\uFF09\u3002\u8BF7\u5C3D\u91CF\u4FDD\u6301\u7AEF\u6B63\u3002',
+    headAngleOk: '\u5934\u90E8\u89D2\u5EA6\u826F\u597D\uFF08{0}\u00B0\uFF09\u3002',
+    mouthOpen: '\u5634\u5DF4\u4F3C\u4E4E\u5F20\u5F00\u3002\u8BF7\u81EA\u7136\u95ED\u5408\u5634\u5DF4\u3002',
+    mouthOk: '\u5634\u90E8\u4F4D\u7F6E\u826F\u597D\u3002',
+    headCutOff: '\u5934\u9876\u53EF\u80FD\u88AB\u88C1\u5207\u3002\u8BF7\u786E\u4FDD\u5934\u9876\u4E0A\u65B9\u6709\u7A7A\u95F4\u3002',
+    lowConf: '\u4EBA\u8138\u7F6E\u4FE1\u5EA6\u4F4E\uFF08{0}%\uFF09\u3002\u9762\u90E8\u53EF\u80FD\u88AB\u5E3D\u5B50\u3001\u773C\u955C\u6216\u5176\u4ED6\u7269\u4F53\u906E\u6321\u3002',
+    medConf: '\u4EBA\u8138\u7F6E\u4FE1\u5EA6\uFF1A{0}%\u3002\u5982\u4F69\u6234\u773C\u955C\uFF0C\u5EFA\u8BAE\u6458\u4E0B\u3002',
+    highConf: '\u4EBA\u8138\u6E05\u6670\u53EF\u89C1\uFF08\u7F6E\u4FE1\u5EA6\uFF1A{0}%\uFF09\u3002',
+    faceSideways: '\u9762\u90E8\u4F3C\u4E4E\u4FA7\u8F6C\u3002\u8BF7\u6B63\u5BF9\u955C\u5934\u3002',
+    faceFront: '\u9762\u90E8\u6B63\u5BF9\u955C\u5934\u3002',
+    noFaceCrop: '\u88C1\u5207\u533A\u57DF\u672A\u68C0\u6D4B\u5230\u4EBA\u8138\u3002\u8BF7\u91CD\u65B0\u88C1\u5207\u4EE5\u5305\u542B\u5B8C\u6574\u9762\u90E8\u3002',
+    multiFaceCrop: '\u88C1\u5207\u533A\u57DF\u5185\u6709\u591A\u5F20\u4EBA\u8138\u3002',
+    headSmall: '\u5934\u90E8\u592A\u5C0F\uFF1A\u7EA6{0}\u6BEB\u7C73\uFF08\u9700\u898128-33\u6BEB\u7C73\uFF09\u3002',
+    headSlightSmall: '\u5934\u90E8\u7565\u5C0F\uFF1A\u7EA6{0}\u6BEB\u7C73\uFF08\u9700\u898128-33\u6BEB\u7C73\uFF09\u3002',
+    headLarge: '\u5934\u90E8\u592A\u5927\uFF1A\u7EA6{0}\u6BEB\u7C73\uFF08\u9700\u898128-33\u6BEB\u7C73\uFF09\u3002',
+    headSlightLarge: '\u5934\u90E8\u7565\u5927\uFF1A\u7EA6{0}\u6BEB\u7C73\uFF08\u9700\u898128-33\u6BEB\u7C73\uFF09\u3002',
+    headOk: '\u5934\u90E8\u9AD8\u5EA6\uFF1A\u7EA6{0}\u6BEB\u7C73\uFF08\u8981\u6C42\uFF1A28-33\u6BEB\u7C73\uFF09\u3002',
+    marginSmall: '\u9876\u90E8\u7559\u767D\u592A\u5C0F\uFF1A\u7EA6{0}\u6BEB\u7C73\uFF08\u9700\u89813-5\u6BEB\u7C73\uFF09\u3002',
+    marginTight: '\u9876\u90E8\u7559\u767D\u504F\u5C0F\uFF1A\u7EA6{0}\u6BEB\u7C73\uFF08\u9700\u89813-5\u6BEB\u7C73\uFF09\u3002',
+    marginLarge: '\u9876\u90E8\u7559\u767D\u504F\u5927\uFF1A\u7EA6{0}\u6BEB\u7C73\uFF08\u9700\u89813-5\u6BEB\u7C73\uFF09\u3002',
+    marginOk: '\u9876\u90E8\u7559\u767D\uFF1A\u7EA6{0}\u6BEB\u7C73\uFF08\u8981\u6C42\uFF1A3-5\u6BEB\u7C73\uFF09\u3002',
+    notCentered: '\u4EBA\u8138\u672A\u6C34\u5E73\u5C45\u4E2D\u3002',
+    centered: '\u4EBA\u8138\u5C45\u4E2D\u3002',
+    eyeHigh: '\u773C\u775B\u4F4D\u7F6E\u53EF\u80FD\u504F\u9AD8\u3002',
+    eyeLow: '\u773C\u775B\u4F4D\u7F6E\u53EF\u80FD\u504F\u4F4E\u3002',
+    eyeOk: '\u773C\u775B\u4F4D\u7F6E\u826F\u597D\u3002',
+    faceNarrow: '\u9762\u90E8\u5BBD\u5EA6\u504F\u7A84\uFF1A\u7EA6{0}\u6BEB\u7C73\uFF08\u7406\u60F3\uFF1A15-22\u6BEB\u7C73\uFF09\u3002',
+    faceWide: '\u9762\u90E8\u5BBD\u5EA6\u504F\u5BBD\uFF1A\u7EA6{0}\u6BEB\u7C73\uFF08\u7406\u60F3\uFF1A15-22\u6BEB\u7C73\uFF09\u3002',
+    faceWidthOk: '\u9762\u90E8\u5BBD\u5EA6\uFF1A\u7EA6{0}\u6BEB\u7C73\uFF08\u7406\u60F3\uFF1A15-22\u6BEB\u7C73\uFF09\u3002',
+    bgReplaced2: '\u80CC\u666F\u5DF2\u66FF\u6362\u4E3A\u7EAF\u8272\u3002',
+    allPass: '\u6240\u6709\u68C0\u67E5\u901A\u8FC7\uFF01\u7167\u7247\u7B26\u5408\u8981\u6C42\u3002',
+    issuesFound: '\u53D1\u73B0 {0} \u4E2A\u95EE\u9898\u3002\u8BF7\u5728\u4F7F\u7528\u524D\u4FEE\u6B63\u3002',
+    warningsFound: '{0} \u4E2A\u8B66\u544A\u3002\u53EF\u80FD\u4ECD\u53EF\u63A5\u53D7\u3002',
+    faceDetectErr: '\u4EBA\u8138\u68C0\u6D4B\u4E0D\u53EF\u7528\u3002\u60A8\u4ECD\u53EF\u624B\u52A8\u88C1\u5207\u3002',
+    modelsLoading: '\u4EBA\u8138\u68C0\u6D4B\u6A21\u578B\u52A0\u8F7D\u4E2D\u3002\u53EF\u5148\u8FDB\u884C\u88C1\u5207\u3002',
+    labelHeadTop: '\u2193 \u5934\u9876', labelEyes: '\u773C\u775B', labelChin: '\u4E0B\u5DF4',
+    guideHeadTop: '\u5934\u9876', guideTopMargin: '\u9876\u90E8\u7559\u767D 3-5mm', guideEyeLevel: '\u773C\u775B\u4F4D\u7F6E', guideChinLine: '\u4E0B\u5DF4\u7EBF',
+  }
+};
+
+function t(key, ...args) {
+  let s = T[lang][key] || T['en'][key] || key;
+  args.forEach((a, i) => { s = s.replace('{' + i + '}', a); });
+  return s;
+}
+
+function toggleLang() {
+  lang = lang === 'en' ? 'zh' : 'en';
+  document.getElementById('langLabel').textContent = lang === 'en' ? '\u4E2D\u6587' : 'EN';
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.getAttribute('data-i18n');
+    if (T[lang][key]) el.innerHTML = T[lang][key];
+  });
+  // Re-render validation panels and guide lines in new language
+  rerenderValidations();
+  injectGuides();
+}
+
+// ==================== CONSTANTS ====================
+const PHOTO_W_PX = 390, PHOTO_H_PX = 567, ASPECT = 33 / 48;
+// 4x6 inch landscape: 4 columns x 2 rows = 8 photos
+const SHEET_W = 1800, SHEET_H = 1200, COLS = 4, ROWS = 2;
+const TOP_MARGIN_MIN = 3/48, TOP_MARGIN_MAX = 5/48;
+const CHIN_MIN = TOP_MARGIN_MIN + 28/48, CHIN_MAX = TOP_MARGIN_MAX + 33/48;
+const EYE_MIN = 0.35, EYE_MAX = 0.50;
+
+let cropper = null, croppedCanvas = null, finalCanvas = null;
+let bgColor = [255,255,255], bgEnabled = false;
+let faceApiLoaded = false, guidesVisible = true, currentImageSrc = null;
+
+// ==================== FACE-API ====================
+async function loadFaceApi() {
+  const URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/model/';
+  try {
+    await Promise.all([
+      faceapi.nets.tinyFaceDetector.loadFromUri(URL),
+      faceapi.nets.faceLandmark68TinyNet.loadFromUri(URL),
+    ]);
+    faceApiLoaded = true;
+  } catch (e) { console.warn('Face-api load error:', e); }
+}
+loadFaceApi();
+
+async function detectFace(img) {
+  if (!faceApiLoaded) return null;
+  return await faceapi.detectAllFaces(img, new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.4 })).withFaceLandmarks(true);
+}
+
+// ==================== MEDIAPIPE BACKGROUND REMOVAL ====================
+let mpSegmenter = null;
+let visionModule = null;
+
+async function initSegmenter() {
+  if (!visionModule) {
+    visionModule = await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/+esm');
+  }
+  const vision = await visionModule.FilesetResolver.forVisionTasks(
+    'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm'
+  );
+  mpSegmenter = await visionModule.ImageSegmenter.createFromOptions(vision, {
+    baseOptions: {
+      modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float16/latest/selfie_segmenter.tflite',
+    },
+    runningMode: 'IMAGE',
+    outputCategoryMask: true,
+  });
+}
+
+async function removeBackground(sourceCanvas, newBgColor) {
+  if (!mpSegmenter) await initSegmenter();
+
+  const w = sourceCanvas.width, h = sourceCanvas.height;
+  const result = mpSegmenter.segment(sourceCanvas);
+  const maskData = result.categoryMask.getAsFloat32Array();
+
+  // Build soft mask: blur the binary mask for smooth edges
+  // MediaPipe selfie segmenter: 0 = person, 1 = background
+  // We need: 1 = keep (person), 0 = replace (background)
+  let mask = new Float32Array(maskData.length);
+  for (let i = 0; i < maskData.length; i++) {
+    mask[i] = maskData[i] < 0.5 ? 1.0 : 0.0;
+  }
+  mask = blurMask(mask, w, h, 2);
+
+  // Composite: original * mask + bgColor * (1-mask)
+  const out = document.createElement('canvas');
+  out.width = w; out.height = h;
+  const ctx = out.getContext('2d');
+  ctx.drawImage(sourceCanvas, 0, 0);
+  const imgData = ctx.getImageData(0, 0, w, h);
+  const px = imgData.data;
+
+  for (let i = 0; i < mask.length; i++) {
+    const a = mask[i];
+    if (a >= 1) continue;
+    const p = i * 4;
+    px[p]   = Math.round(px[p]   * a + newBgColor[0] * (1 - a));
+    px[p+1] = Math.round(px[p+1] * a + newBgColor[1] * (1 - a));
+    px[p+2] = Math.round(px[p+2] * a + newBgColor[2] * (1 - a));
+  }
+  ctx.putImageData(imgData, 0, 0);
+
+  result.categoryMask.close();
+  return out;
+}
+
+function blurMask(mask, w, h, radius) {
+  let src = mask, dst = new Float32Array(mask.length);
+  for (let pass = 0; pass < 2; pass++) {
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        let s = 0, c = 0;
+        for (let dx = -radius; dx <= radius; dx++) {
+          const nx = x + dx;
+          if (nx >= 0 && nx < w) { s += src[y * w + nx]; c++; }
+        }
+        dst[y * w + x] = s / c;
+      }
+    }
+    [src, dst] = [dst, src];
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        let s = 0, c = 0;
+        for (let dy = -radius; dy <= radius; dy++) {
+          const ny = y + dy;
+          if (ny >= 0 && ny < h) { s += src[ny * w + x]; c++; }
+        }
+        dst[y * w + x] = s / c;
+      }
+    }
+    [src, dst] = [dst, src];
+  }
+  return src;
+}
+
+// ==================== BACKGROUND UI ====================
+const bgEnabledCb = document.getElementById('bgEnabled');
+const bgControlsDiv = document.getElementById('bgControls');
+
+bgEnabledCb.addEventListener('change', () => {
+  bgEnabled = bgEnabledCb.checked;
+  bgControlsDiv.classList.toggle('hidden', !bgEnabled);
+});
+
+document.querySelectorAll('.bg-color-btn').forEach(el => {
+  el.addEventListener('click', () => {
+    document.querySelectorAll('.bg-color-btn').forEach(o => o.classList.remove('active'));
+    el.classList.add('active');
+    bgColor = el.dataset.bg.split(',').map(Number);
+  });
+});
+
+async function previewBackground() {
+  if (!cropper) return;
+  const statusDiv = document.getElementById('bgStatus');
+  statusDiv.innerHTML = `<div class="bg-status bg-status-processing"><div class="spinner"></div> ${t('bgProcessing')}</div>`;
+
+  const crop = cropper.getCroppedCanvas({ width: Math.round(PHOTO_W_PX*0.6), height: Math.round(PHOTO_H_PX*0.6), imageSmoothingEnabled: true, imageSmoothingQuality: 'high' });
+  const orig = document.getElementById('bgPreviewOrig');
+  orig.width = crop.width; orig.height = crop.height;
+  orig.getContext('2d').drawImage(crop, 0, 0);
+
+  await new Promise(r => setTimeout(r, 50));
+  try {
+    const res = await removeBackground(crop, bgColor);
+    const nc = document.getElementById('bgPreviewNew');
+    nc.width = res.width; nc.height = res.height;
+    nc.getContext('2d').drawImage(res, 0, 0);
+    document.getElementById('bgPreviewRow').style.display = 'flex';
+    statusDiv.innerHTML = `<div class="bg-status bg-status-done">\u2705 ${t('bgDone')}</div>`;
+  } catch (err) {
+    console.error('BG error:', err);
+    statusDiv.innerHTML = `<div class="bg-status" style="background:#fff3e0;border:1px solid #ffcc80;">\u26A0\uFE0F Error: ${err.message}</div>`;
+  }
+}
+
+// ==================== VALIDATION ====================
+function avgPoint(pts) {
+  const s = pts.reduce((a, p) => ({ x: a.x + p.x, y: a.y + p.y }), { x: 0, y: 0 });
+  return { x: s.x / pts.length, y: s.y / pts.length };
+}
+
+// Checks store {type, key, args} so they can be re-rendered in any language
+let lastUploadChecks = null, lastUploadTitle = '';
+let lastCropChecks = null, lastCropTitle = '';
+
+function validateUpload(det, iw, ih) {
+  const c = [];
+  if (!det || det.length === 0) { c.push({ type:'fail', key:'noFace' }); return c; }
+  if (det.length > 1) c.push({ type:'fail', key:'multiFace', args:[det.length] });
+  else c.push({ type:'pass', key:'oneFace' });
+
+  const d = det[0], box = d.detection.box, lm = d.landmarks;
+  const fr = box.height / ih;
+  if (fr < 0.15) c.push({ type:'fail', key:'faceTooSmall' });
+  else if (fr > 0.85) c.push({ type:'warn', key:'faceTooLarge' });
+  else c.push({ type:'pass', key:'faceSizeOk' });
+
+  const cx = (box.x + box.width/2) / iw;
+  if (cx < 0.3 || cx > 0.7) c.push({ type:'warn', key:'faceNotCenter' });
+
+  const le = avgPoint(lm.getLeftEye()), re = avgPoint(lm.getRightEye());
+  const angle = Math.abs(Math.atan2(re.y - le.y, re.x - le.x) * 180 / Math.PI);
+  if (angle > 8) c.push({ type:'fail', key:'headTilted', args:[angle.toFixed(1)] });
+  else if (angle > 4) c.push({ type:'warn', key:'headSlightTilt', args:[angle.toFixed(1)] });
+  else c.push({ type:'pass', key:'headAngleOk', args:[angle.toFixed(1)] });
+
+  const mouth = lm.getMouth();
+  const ul = avgPoint(mouth.slice(13,20)), ll = avgPoint(mouth.slice(19,20).concat(mouth.slice(7,12)));
+  if ((ll.y - ul.y) / box.height > 0.06) c.push({ type:'warn', key:'mouthOpen' });
+  else c.push({ type:'pass', key:'mouthOk' });
+
+  if (box.y < ih * 0.02) c.push({ type:'warn', key:'headCutOff' });
+
+  const sc = (d.detection.score * 100).toFixed(0);
+  if (d.detection.score < 0.6) c.push({ type:'warn', key:'lowConf', args:[sc] });
+  else if (d.detection.score < 0.75) c.push({ type:'info', key:'medConf', args:[sc] });
+  else c.push({ type:'pass', key:'highConf', args:[sc] });
+
+  const ewr = Math.abs(re.x - le.x) / box.width;
+  if (ewr < 0.25) c.push({ type:'fail', key:'faceSideways' });
+  else c.push({ type:'pass', key:'faceFront' });
+
+  return c;
+}
+
+function validateCrop(det, cw, ch) {
+  const c = [];
+  if (!det || det.length === 0) { c.push({ type:'fail', key:'noFaceCrop' }); return c; }
+  if (det.length > 1) c.push({ type:'fail', key:'multiFaceCrop' });
+
+  const d = det[0], box = d.detection.box, lm = d.landmarks;
+  const jaw = lm.getJawOutline();
+  const jawBot = Math.max(...jaw.map(p => p.y));
+  const fh = jawBot - box.y;
+  const headTop = Math.max(0, box.y - fh * 0.45);
+  const hhMM = ((jawBot - headTop) / ch * 48).toFixed(1);
+  const tmMM = (headTop / ch * 48).toFixed(1);
+
+  if (hhMM < 25) c.push({ type:'fail', key:'headSmall', args:[hhMM] });
+  else if (hhMM < 28) c.push({ type:'warn', key:'headSlightSmall', args:[hhMM] });
+  else if (hhMM > 36) c.push({ type:'fail', key:'headLarge', args:[hhMM] });
+  else if (hhMM > 33) c.push({ type:'warn', key:'headSlightLarge', args:[hhMM] });
+  else c.push({ type:'pass', key:'headOk', args:[hhMM] });
+
+  if (tmMM < 1) c.push({ type:'fail', key:'marginSmall', args:[tmMM] });
+  else if (tmMM < 3) c.push({ type:'warn', key:'marginTight', args:[tmMM] });
+  else if (tmMM > 7) c.push({ type:'warn', key:'marginLarge', args:[tmMM] });
+  else c.push({ type:'pass', key:'marginOk', args:[tmMM] });
+
+  const fcx = (box.x + box.width/2) / cw;
+  if (Math.abs(fcx - 0.5) > 0.08) c.push({ type:'warn', key:'notCentered' });
+  else c.push({ type:'pass', key:'centered' });
+
+  const le = avgPoint(lm.getLeftEye()), re = avgPoint(lm.getRightEye());
+  const eyeY = (le.y + re.y) / 2 / ch;
+  if (eyeY < 0.30) c.push({ type:'warn', key:'eyeHigh' });
+  else if (eyeY > 0.55) c.push({ type:'warn', key:'eyeLow' });
+  else c.push({ type:'pass', key:'eyeOk' });
+
+  const fwMM = (box.width / cw * 33).toFixed(1);
+  if (fwMM < 13) c.push({ type:'warn', key:'faceNarrow', args:[fwMM] });
+  else if (fwMM > 24) c.push({ type:'warn', key:'faceWide', args:[fwMM] });
+  else c.push({ type:'pass', key:'faceWidthOk', args:[fwMM] });
+
+  if (d.detection.score < 0.6) c.push({ type:'warn', key:'lowConf', args:[(d.detection.score*100).toFixed(0)] });
+  return c;
+}
+
+function renderChecks(id, checks, titleKey) {
+  const el = document.getElementById(id);
+  const fails = checks.filter(c => c.type === 'fail').length;
+  const warns = checks.filter(c => c.type === 'warn').length;
+  const icons = { pass:'\u2705', fail:'\u274C', warn:'\u26A0\uFE0F', info:'\u2139\uFE0F' };
+  let sc = 'summary-pass', st = t('allPass');
+  if (fails > 0) { sc = 'summary-fail'; st = t('issuesFound', fails); }
+  else if (warns > 0) { sc = 'summary-warn'; st = t('warningsFound', warns); }
+  el.innerHTML = `<div class="validation-panel validation-results"><strong>${t(titleKey)}</strong><div style="margin-top:8px;">${checks.map(c => `<div class="check-item check-${c.type}"><span class="check-icon">${icons[c.type]}</span><span class="check-text">${t(c.key, ...(c.args||[]))}</span></div>`).join('')}</div><div class="validation-summary ${sc}">${st}</div></div>`;
+
+  // Store for re-render on language switch
+  if (id === 'uploadValidation') { lastUploadChecks = checks; lastUploadTitle = titleKey; }
+  if (id === 'cropValidation') { lastCropChecks = checks; lastCropTitle = titleKey; }
+}
+
+function rerenderValidations() {
+  if (lastUploadChecks) renderChecks('uploadValidation', lastUploadChecks, lastUploadTitle);
+  if (lastCropChecks) renderChecks('cropValidation', lastCropChecks, lastCropTitle);
+}
+
+function showLoading(id, msg) {
+  document.getElementById(id).innerHTML = `<div class="validation-panel validation-loading"><div class="spinner"></div><span>${msg}</span></div>`;
+}
+
+// ==================== GUIDE LINES ====================
+function injectGuides() {
+  const cb = document.querySelector('.cropper-crop-box');
+  if (!cb) return;
+  const ex = cb.querySelector('.guide-overlay');
+  if (ex) ex.remove();
+  if (!guidesVisible) return;
+
+  const o = document.createElement('div'); o.className = 'guide-overlay';
+
+  const tz = document.createElement('div'); tz.className = 'guide-zone guide-zone-top';
+  tz.style.top = '0'; tz.style.height = (TOP_MARGIN_MAX*100)+'%'; o.appendChild(tz);
+  addLabel(o, (TOP_MARGIN_MAX*100)+'%', t('guideTopMargin'), '#ccaa00');
+
+  const hty = ((TOP_MARGIN_MIN+TOP_MARGIN_MAX)/2*100);
+  addLine(o, hty+'%', 'rgba(0,255,100,0.8)');
+  addLabel(o, hty+'%', '\u2193 '+t('guideHeadTop'), '#00ff64');
+
+  const ez = document.createElement('div'); ez.className = 'guide-zone guide-zone-eyes';
+  ez.style.top = (EYE_MIN*100)+'%'; ez.style.height = ((EYE_MAX-EYE_MIN)*100)+'%'; o.appendChild(ez);
+  addLabel(o, ((EYE_MIN+EYE_MAX)/2*100)+'%', t('guideEyeLevel'), '#0096ff');
+
+  const cy = ((CHIN_MIN+CHIN_MAX)/2*100);
+  addLine(o, cy+'%', 'rgba(255,100,0,0.7)');
+  addLabel(o, cy+'%', t('guideChinLine'), '#ff6600');
+
+  const cl = document.createElement('div'); cl.className = 'guide-line-vertical'; cl.style.left = '50%'; o.appendChild(cl);
+  cb.appendChild(o);
+}
+function addLine(p,top,color) { const e=document.createElement('div'); e.className='guide-line'; e.style.top=top; e.style.borderTopColor=color; p.appendChild(e); }
+function addLabel(p,top,text,color) { const e=document.createElement('div'); e.className='guide-label'; e.style.top=top; e.style.color=color; e.textContent=text; p.appendChild(e); }
+
+// ==================== UPLOAD ====================
+const fileInput = document.getElementById('fileInput');
+const uploadArea = document.getElementById('uploadArea');
+uploadArea.addEventListener('dragover', e => { e.preventDefault(); uploadArea.classList.add('dragover'); });
+uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('dragover'));
+uploadArea.addEventListener('drop', e => { e.preventDefault(); uploadArea.classList.remove('dragover'); if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]); });
+fileInput.addEventListener('change', e => { if (e.target.files.length) handleFile(e.target.files[0]); });
+
+async function handleFile(file) {
+  if (!file.type.startsWith('image/')) return alert('Please select an image file.');
+  const reader = new FileReader();
+  reader.onload = async e => {
+    currentImageSrc = e.target.result;
+    showLoading('uploadValidation', t('analyzing'));
+    const img = new Image();
+    img.onload = async () => {
+      if (faceApiLoaded) {
+        try { renderChecks('uploadValidation', validateUpload(await detectFace(img), img.width, img.height), 'valTitle'); }
+        catch(e) { document.getElementById('uploadValidation').innerHTML = `<div class="validation-panel validation-loading" style="background:#fff3e0;border-color:#ffcc80;">\u26A0\uFE0F ${t('faceDetectErr')}</div>`; }
+      } else {
+        document.getElementById('uploadValidation').innerHTML = `<div class="validation-panel validation-loading" style="background:#fff3e0;border-color:#ffcc80;">\u26A0\uFE0F ${t('modelsLoading')}</div>`;
+      }
+      setTimeout(() => showStep2(currentImageSrc), 500);
+    };
+    img.src = currentImageSrc;
+  };
+  reader.readAsDataURL(file);
+}
+
+// ==================== STEPS ====================
+function showStep2(src) {
+  document.getElementById('step1').classList.add('hidden');
+  document.getElementById('step2').classList.remove('hidden');
+  document.getElementById('step3').classList.add('hidden');
+  document.getElementById('bgPreviewRow').style.display = 'none';
+  document.getElementById('bgStatus').innerHTML = '';
+  const img = document.getElementById('cropImage'); img.src = src;
+  if (cropper) cropper.destroy();
+  img.onload = () => {
+    cropper = new Cropper(img, {
+      aspectRatio: ASPECT, viewMode: 1, dragMode: 'move', autoCropArea: 0.75,
+      restore: false, guides: true, center: true, highlight: true,
+      cropBoxMovable: true, cropBoxResizable: true, toggleDragModeOnDblclick: false,
+      ready() { injectGuides(); },
+      crop() { requestAnimationFrame(injectGuides); },
+    });
+  };
+}
+
+document.getElementById('showGuides').addEventListener('change', e => { guidesVisible = e.target.checked; injectGuides(); });
+function rotateCrop(d) { if (cropper) cropper.rotate(d); }
+function resetCrop() { if (cropper) cropper.reset(); }
+
+async function applyCrop() {
+  if (!cropper) return;
+  croppedCanvas = cropper.getCroppedCanvas({ width: PHOTO_W_PX, height: PHOTO_H_PX, imageSmoothingEnabled: true, imageSmoothingQuality: 'high' });
+  document.getElementById('step2').classList.add('hidden');
+  document.getElementById('step3').classList.remove('hidden');
+
+  if (bgEnabled) {
+    showLoading('cropValidation', t('replacingBg'));
+    await new Promise(r => setTimeout(r, 50));
+    try { finalCanvas = await removeBackground(croppedCanvas, bgColor); }
+    catch (e) { console.warn('BG error:', e); finalCanvas = croppedCanvas; }
+  } else { finalCanvas = croppedCanvas; }
+
+  showSinglePreview(); generateGrid();
+
+  showLoading('cropValidation', t('validating'));
+  if (faceApiLoaded) {
+    try {
+      const tmp = new Image();
+      tmp.onload = async () => {
+        const checks = validateCrop(await detectFace(tmp), PHOTO_W_PX, PHOTO_H_PX);
+        if (bgEnabled) checks.unshift({ type:'pass', text: t('bgReplaced2') });
+        renderChecks('cropValidation', checks, 'valCropTitle');
+      };
+      tmp.src = croppedCanvas.toDataURL('image/jpeg', 0.95);
+    } catch(e) { document.getElementById('cropValidation').innerHTML = ''; }
+  } else {
+    document.getElementById('cropValidation').innerHTML = bgEnabled ? `<div class="validation-panel validation-results"><div class="check-item check-pass"><span class="check-icon">\u2705</span><span class="check-text">${t('bgReplaced2')}</span></div></div>` : '';
+  }
+}
+
+function showSinglePreview() {
+  const div = document.getElementById('singlePreview'); div.innerHTML = '';
+  const c = document.createElement('canvas'); c.width = PHOTO_W_PX; c.height = PHOTO_H_PX;
+  const ctx = c.getContext('2d');
+  ctx.drawImage(finalCanvas, 0, 0);
+  ctx.setLineDash([6,4]); ctx.lineWidth = 1.5;
+
+  const tmy = ((TOP_MARGIN_MIN+TOP_MARGIN_MAX)/2)*PHOTO_H_PX;
+  ctx.fillStyle='rgba(255,200,0,0.12)'; ctx.fillRect(0,0,PHOTO_W_PX,TOP_MARGIN_MAX*PHOTO_H_PX);
+  ctx.strokeStyle='rgba(0,200,80,0.6)'; ctx.beginPath(); ctx.moveTo(0,tmy); ctx.lineTo(PHOTO_W_PX,tmy); ctx.stroke();
+
+  const et=EYE_MIN*PHOTO_H_PX, eb=EYE_MAX*PHOTO_H_PX;
+  ctx.fillStyle='rgba(0,150,255,0.08)'; ctx.fillRect(0,et,PHOTO_W_PX,eb-et);
+  ctx.strokeStyle='rgba(0,150,255,0.5)'; ctx.beginPath(); ctx.moveTo(0,(et+eb)/2); ctx.lineTo(PHOTO_W_PX,(et+eb)/2); ctx.stroke();
+
+  const cy=((CHIN_MIN+CHIN_MAX)/2)*PHOTO_H_PX;
+  ctx.strokeStyle='rgba(255,100,0,0.6)'; ctx.beginPath(); ctx.moveTo(0,cy); ctx.lineTo(PHOTO_W_PX,cy); ctx.stroke();
+
+  ctx.strokeStyle='rgba(0,200,80,0.3)'; ctx.beginPath(); ctx.moveTo(PHOTO_W_PX/2,0); ctx.lineTo(PHOTO_W_PX/2,PHOTO_H_PX); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.font='bold 14px sans-serif'; ctx.textAlign='right';
+  ctx.fillStyle='rgba(0,200,80,0.8)'; ctx.fillText(t('labelHeadTop'), PHOTO_W_PX-6, tmy-4);
+  ctx.fillStyle='rgba(0,120,255,0.8)'; ctx.fillText(t('labelEyes'), PHOTO_W_PX-6, (et+eb)/2-4);
+  ctx.fillStyle='rgba(255,100,0,0.8)'; ctx.fillText(t('labelChin'), PHOTO_W_PX-6, cy-4);
+  div.appendChild(c);
+}
+
+function generateGrid() {
+  const div = document.getElementById('gridPreview'); div.innerHTML = '';
+  const c = document.createElement('canvas'); c.width = SHEET_W; c.height = SHEET_H;
+  const ctx = c.getContext('2d');
+  const bg = bgEnabled ? `rgb(${bgColor[0]},${bgColor[1]},${bgColor[2]})` : '#fff';
+  ctx.fillStyle = bg; ctx.fillRect(0,0,SHEET_W,SHEET_H);
+  const gx = (SHEET_W - COLS*PHOTO_W_PX) / (COLS+1);
+  const gy = (SHEET_H - ROWS*PHOTO_H_PX) / (ROWS+1);
+  for (let r=0; r<ROWS; r++) for (let cl=0; cl<COLS; cl++) {
+    const x = gx + cl*(PHOTO_W_PX+gx), y = gy + r*(PHOTO_H_PX+gy);
+    ctx.drawImage(finalCanvas, x, y, PHOTO_W_PX, PHOTO_H_PX);
+    ctx.strokeStyle='#ccc'; ctx.lineWidth=0.5; ctx.strokeRect(x,y,PHOTO_W_PX,PHOTO_H_PX);
+  }
+  div.appendChild(c);
+}
+
+function downloadResult() {
+  const c = document.querySelector('#gridPreview canvas'); if (!c) return;
+  const a = document.createElement('a'); a.download='passport_photos_4x6.jpg'; a.href=c.toDataURL('image/jpeg',0.95); a.click();
+}
+function downloadSingle() {
+  if (!finalCanvas) return;
+  const a = document.createElement('a'); a.download='passport_photo_33x48mm.jpg'; a.href=finalCanvas.toDataURL('image/jpeg',0.95); a.click();
+}
+
+function goToStep1() {
+  if (cropper) { cropper.destroy(); cropper=null; }
+  document.getElementById('step1').classList.remove('hidden');
+  document.getElementById('step2').classList.add('hidden');
+  document.getElementById('step3').classList.add('hidden');
+  document.getElementById('uploadValidation').innerHTML = '';
+  fileInput.value = '';
+}
+function goToStep2() {
+  document.getElementById('step2').classList.remove('hidden');
+  document.getElementById('step3').classList.add('hidden');
+  if (!cropper && currentImageSrc) showStep2(currentImageSrc);
+}
+</script>
+</body>
+</html>
