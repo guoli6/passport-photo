@@ -913,13 +913,37 @@ function generateGrid() {
   div.appendChild(c);
 }
 
+// Embed 300 DPI into JPEG JFIF header
+function setJpegDpi(dataUrl, dpi) {
+  const raw = atob(dataUrl.split(',')[1]);
+  const arr = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+
+  // Find JFIF APP0 marker (FF E0) after SOI (FF D8)
+  if (arr[0] === 0xFF && arr[1] === 0xD8 && arr[2] === 0xFF && arr[3] === 0xE0) {
+    // JFIF header found — set density units to DPI (1) and X/Y density to 300
+    arr[11] = 1; // density units: 1 = dots per inch
+    arr[12] = (dpi >> 8) & 0xFF; // X density high byte
+    arr[13] = dpi & 0xFF;        // X density low byte
+    arr[14] = (dpi >> 8) & 0xFF; // Y density high byte
+    arr[15] = dpi & 0xFF;        // Y density low byte
+  }
+
+  const blob = new Blob([arr], { type: 'image/jpeg' });
+  return URL.createObjectURL(blob);
+}
+
 function downloadResult() {
   const c = document.querySelector('#gridPreview canvas'); if (!c) return;
-  const a = document.createElement('a'); a.download='passport_photos_4x6.jpg'; a.href=c.toDataURL('image/jpeg',0.95); a.click();
+  const url = setJpegDpi(c.toDataURL('image/jpeg', 0.95), 300);
+  const a = document.createElement('a'); a.download='passport_photos_4x6.jpg'; a.href=url; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
 function downloadSingle() {
   if (!finalCanvas) return;
-  const a = document.createElement('a'); a.download='passport_photo_33x48mm.jpg'; a.href=finalCanvas.toDataURL('image/jpeg',0.95); a.click();
+  const url = setJpegDpi(finalCanvas.toDataURL('image/jpeg', 0.95), 300);
+  const a = document.createElement('a'); a.download='passport_photo_33x48mm.jpg'; a.href=url; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
 
 function goToStep1() {
