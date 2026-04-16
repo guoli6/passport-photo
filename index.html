@@ -99,15 +99,74 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 .guide-legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 10px; font-size: 12px; color: #666; }
 .legend-item { display: flex; align-items: center; gap: 5px; }
 .legend-swatch { width: 20px; height: 3px; border-radius: 2px; }
+/* Disclaimer modal */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 9999;
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+}
+.modal-box {
+  background: white; border-radius: 16px; max-width: 600px; width: 100%;
+  max-height: 90vh; overflow-y: auto; box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+}
+.modal-header {
+  background: linear-gradient(135deg, #c62828, #e53935);
+  color: white; padding: 20px 24px; border-radius: 16px 16px 0 0; text-align: center;
+}
+.modal-header h2 { font-size: 20px; margin-bottom: 4px; }
+.modal-header p { font-size: 13px; opacity: 0.9; }
+.modal-body { padding: 24px; font-size: 14px; line-height: 1.8; color: #444; }
+.modal-body p { margin-bottom: 14px; }
+.modal-body .disclaimer-zh { border-top: 1px solid #eee; padding-top: 16px; margin-top: 16px; }
+.modal-footer { padding: 16px 24px 24px; text-align: center; }
+.modal-agree-btn {
+  padding: 14px 48px; background: #c62828; color: white; border: none;
+  border-radius: 10px; font-size: 17px; font-weight: 700; cursor: pointer; transition: all 0.2s;
+}
+.modal-agree-btn:hover { background: #b71c1c; transform: scale(1.02); }
+
 @media (max-width: 600px) {
   .container { padding: 12px; } .step { padding: 16px; } .upload-area { padding: 24px; }
   .btn { padding: 10px 20px; font-size: 14px; } .bg-preview-row { flex-direction: column; align-items: center; }
   .lang-btn { top: 10px; right: 10px; padding: 4px 10px; font-size: 12px; }
   .type-btn { padding: 6px 14px; font-size: 12px; }
+  .modal-box { margin: 10px; }
+  .modal-body { padding: 16px; font-size: 13px; }
 }
 </style>
 </head>
 <body>
+
+<!-- Disclaimer Modal -->
+<div class="modal-overlay" id="disclaimerModal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h2>Disclaimer / 免责声明</h2>
+      <p>Please read before using / 使用前请阅读</p>
+    </div>
+    <div class="modal-body">
+      <p>This tool was built by a father for his five-year-old son, who is going home to visit grandma. It is designed to help you create passport and ID photos at home and print them cheaply at places like Walmart or CVS.</p>
+
+      <p><strong>Important:</strong> This tool is provided "as is" for personal convenience only. While we have done our best to follow the official photo specifications, <strong>we cannot guarantee that photos produced by this tool will be accepted by the Chinese Embassy, Canadian immigration authorities (IRCC), or any other government agency.</strong></p>
+
+      <p>Please verify your photos against the official requirements yourself. Leave yourself enough time in case the photos need to be retaken. We are not responsible for any rejected applications due to photo issues.</p>
+
+      <p>Good luck to you and your loved ones.</p>
+
+      <div class="disclaimer-zh">
+        <p>这个工具是一位父亲为他五岁的儿子制作的，小朋友要回国看奶奶。这个工具可以帮助您在家制作证件照，然后去 Walmart 或 CVS 以很低的价格打印出来。</p>
+
+        <p><strong>重要提示：</strong>本工具仅供个人便利使用，按"原样"提供。虽然我们已尽最大努力遵循官方照片规格，但<strong>我们无法保证本工具生成的照片一定会被中国大使馆、加拿大移民局（IRCC）或任何其他政府机构接受。</strong></p>
+
+        <p>请您自行对照官方要求验证照片。请预留充足时间，以防照片需要重拍。我们不对因照片问题导致的申请被拒承担任何责任。</p>
+
+        <p>祝您和您的家人一切顺利。</p>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="modal-agree-btn" onclick="acceptDisclaimer()">I Agree / 我同意</button>
+    </div>
+  </div>
+</div>
 
 <div class="header">
   <h1 data-i18n="title">Passport Photo Maker</h1>
@@ -724,6 +783,10 @@ function downloadSingle() {
 }
 
 // ==================== NAV ====================
+function acceptDisclaimer() {
+  document.getElementById('disclaimerModal').style.display = 'none';
+}
+
 function goToStep1() {
   if(cropper){cropper.destroy();cropper=null;}
   document.getElementById('step1').classList.remove('hidden');
