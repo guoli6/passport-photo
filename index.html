@@ -554,9 +554,19 @@ async function removeBackground(src, bgC) {
   const md = res.categoryMask.getAsFloat32Array();
   let mask = new Float32Array(md.length);
   for (let i = 0; i < md.length; i++) mask[i] = md[i] < 0.5 ? 1.0 : 0.0;
-  // Erode mask to remove shadow pixels at edges, then blur for smooth transitions
-  mask = erodeMask(mask, w, h, 3);
+  // Erode mask aggressively to remove shadow halos at edges
+  mask = erodeMask(mask, w, h, 6);
+  // Blur for smooth transition
   mask = blurMask(mask, w, h, 2);
+  // Contrast curve: push soft-edge pixels harder toward background so shadows
+  // don't bleed through. Any alpha below 0.7 gets strongly pushed toward 0.
+  for (let i = 0; i < mask.length; i++) {
+    const a = mask[i];
+    if (a >= 0.9) continue;              // fully keep strong person pixels
+    if (a < 0.3) { mask[i] = 0; continue; } // discard weak edge pixels
+    // Remap 0.3..0.9 to 0..1 for a cleaner transition
+    mask[i] = (a - 0.3) / 0.6;
+  }
   const out = document.createElement('canvas'); out.width = w; out.height = h;
   const ctx = out.getContext('2d'); ctx.drawImage(src, 0, 0);
   const id = ctx.getImageData(0, 0, w, h); const px = id.data;
