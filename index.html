@@ -554,6 +554,8 @@ async function removeBackground(src, bgC) {
   const md = res.categoryMask.getAsFloat32Array();
   let mask = new Float32Array(md.length);
   for (let i = 0; i < md.length; i++) mask[i] = md[i] < 0.5 ? 1.0 : 0.0;
+  // Erode mask to remove shadow pixels at edges, then blur for smooth transitions
+  mask = erodeMask(mask, w, h, 3);
   mask = blurMask(mask, w, h, 2);
   const out = document.createElement('canvas'); out.width = w; out.height = h;
   const ctx = out.getContext('2d'); ctx.drawImage(src, 0, 0);
@@ -561,6 +563,35 @@ async function removeBackground(src, bgC) {
   for (let i = 0; i < mask.length; i++) { const a = mask[i]; if (a >= 1) continue; const p = i*4; px[p]=Math.round(px[p]*a+bgC[0]*(1-a)); px[p+1]=Math.round(px[p+1]*a+bgC[1]*(1-a)); px[p+2]=Math.round(px[p+2]*a+bgC[2]*(1-a)); }
   ctx.putImageData(id, 0, 0); res.categoryMask.close(); return out;
 }
+// Erode (shrink) mask using separable minimum filter — removes shadow halos at edges
+function erodeMask(mask, w, h, r) {
+  let src = mask, dst = new Float32Array(mask.length);
+  // Horizontal pass
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      let m = 1;
+      for (let d = -r; d <= r; d++) {
+        const n = x + d;
+        if (n >= 0 && n < w) m = Math.min(m, src[y * w + n]);
+      }
+      dst[y * w + x] = m;
+    }
+  }
+  [src, dst] = [dst, src];
+  // Vertical pass
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      let m = 1;
+      for (let d = -r; d <= r; d++) {
+        const n = y + d;
+        if (n >= 0 && n < h) m = Math.min(m, src[n * w + x]);
+      }
+      dst[y * w + x] = m;
+    }
+  }
+  return dst;
+}
+
 function blurMask(mask, w, h, r) {
   let src = mask, dst = new Float32Array(mask.length);
   for (let p = 0; p < 2; p++) {
